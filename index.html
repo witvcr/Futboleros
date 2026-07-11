@@ -99,6 +99,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
 const firebaseConfig = {
+  apiKey: "TU_API_KEY",
   apiKey: "AIzaSyAPf4qVvqgsUGGOOhwNc4DORHMr9HycMWY",
   authDomain: "futboleros-b54ed.firebaseapp.com",
   databaseURL: "https://futboleros-b54ed-default-rtdb.firebaseio.com/",
@@ -157,7 +158,12 @@ function subscribeRoom(){
   if (roomUnsubscribe){ roomUnsubscribe(); roomUnsubscribe = null; }
   if (!currentRoom || !firebaseReady) return;
   roomUnsubscribe = onValue(ref(db, roomPath(currentRoom)), (snap) => {
-    state = snap.exists() ? snap.val() : null;
+    const incoming = snap.exists() ? snap.val() : null;
+    const unchanged = JSON.stringify(incoming) === JSON.stringify(state);
+    state = incoming;
+    // Si los datos no cambiaron y ya estamos mostrando la lista, no redibujamos:
+    // esto evita que una reconexión de Firebase borre lo que el usuario está escribiendo.
+    if (unchanged && (ui.screen === 'roster' || ui.screen === 'setup')) return;
     ui.screen = state ? 'roster' : 'setup';
     render();
   }, (err) => {
@@ -378,7 +384,7 @@ window.cancelConfirm = function(){
 // ---------- render ----------
 function playerById(id){ return state.players.find(p => p.id === id); }
 
-function render(){
+function renderInner(){
   const app = document.getElementById('app');
 
   if (ui.screen === 'config-error'){
@@ -560,6 +566,38 @@ function render(){
 
     <div class="footer-note">El sorteo agrupa por posición y reparte alternando, para que no quede un equipo cargado de una sola posición. Los porteros siempre caen en equipos distintos. Los suplentes quedan fuera del sorteo para poder rotar en cualquiera de los dos equipos.</div>
   `;
+}
+
+function render(){
+  const fieldIds = ['join-name','room-code','place-input'];
+  const saved = {};
+  fieldIds.forEach(id => { const el = document.getElementById(id); if (el) saved[id] = el.value; });
+  const posEl = document.getElementById('join-pos');
+  const savedPos = posEl ? posEl.value : null;
+  const activeId = document.activeElement ? document.activeElement.id : null;
+  const activeEl = document.activeElement;
+  const selStart = (activeEl && typeof activeEl.selectionStart === 'number') ? activeEl.selectionStart : null;
+
+  renderInner();
+
+  fieldIds.forEach(id => {
+    if (saved[id] === undefined) return;
+    const el = document.getElementById(id);
+    if (el) el.value = saved[id];
+  });
+  if (savedPos !== null){
+    const el = document.getElementById('join-pos');
+    if (el) el.value = savedPos;
+  }
+  if (activeId){
+    const el = document.getElementById(activeId);
+    if (el){
+      el.focus();
+      if (selStart !== null && el.setSelectionRange){
+        try { el.setSelectionRange(selStart, selStart); } catch(e){}
+      }
+    }
+  }
 }
 
 init();
