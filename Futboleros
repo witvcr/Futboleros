@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Futboleros — Lista y Sorteo</title>
+<!--
+  ============================================================
+  ANTES DE USAR ESTE ARCHIVO:
+  1. Pensado para GitHub Pages (o cualquier hosting propio), NO
+     para probarlo dentro del chat de Claude (ahí el CDN de
+     Firebase puede quedar bloqueado y se ve en blanco).
+  2. Necesitás crear un proyecto gratis de Firebase y pegar tu
+     configuración real donde dice "firebaseConfig" más abajo.
+     Ver DEPLOY-README.md para el paso a paso.
+  ============================================================
+-->
+<style>
+  :root{
+    --bg-deep:#0B1712; --bg-panel:#142A20; --bg-panel-2:#1B3527; --line:#274235;
+    --chalk:#F4F2EC; --muted:#7FA08D; --gold:#F2C744;
+    --white-team:#F4F2EC; --black-team:#15161A; --red-warn:#E2604F;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 50% 0%, #16301F 0%, var(--bg-deep) 55%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 42px);
+    color:var(--chalk); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    min-height:100vh; display:flex; justify-content:center; padding:26px 14px 60px;
+  }
+  .app{width:100%;max-width:420px;}
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:2.5px;color:var(--gold);text-align:center;margin-bottom:4px;text-transform:uppercase;}
+  h1.title{font-size:26px;font-weight:900;letter-spacing:0.5px;text-transform:uppercase;text-align:center;margin:0 0 4px;color:var(--chalk);line-height:1.15;}
+  .subtitle{text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px;}
+  .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+  label.field-label{display:block;font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+  input[type=text],input[type=date],input[type=time],input[type=number],select{
+    width:100%;background:var(--bg-deep);border:1px solid var(--line);border-radius:10px;
+    color:var(--chalk);font-size:15px;padding:12px;font-family:inherit;
+  }
+  input:focus,select:focus{outline:2px solid var(--gold);outline-offset:1px;}
+  .row{display:flex;gap:10px;margin-bottom:12px;}
+  .row > div{flex:1;}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.4;}
+  .btn{width:100%;border:none;border-radius:10px;padding:14px;font-weight:800;font-size:14.5px;
+    letter-spacing:0.4px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:transform .12s ease, opacity .12s ease;}
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--gold);color:#1A1204;}
+  .btn-primary:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .reset-btn{background:none;border:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:4px;}
+  .capacity-bar{background:var(--bg-deep);border:1px solid var(--line);border-radius:8px;height:8px;overflow:hidden;margin:10px 0 4px;}
+  .capacity-fill{height:100%;background:var(--gold);transition:width .3s ease;}
+  .capacity-text{font-size:12.5px;color:var(--muted);text-align:right;}
+  .roster-list{display:flex;flex-direction:column;gap:8px;margin:14px 0;}
+  .roster-row{display:flex;align-items:center;justify-content:space-between;
+    background:var(--bg-panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14.5px;}
+  .roster-row .pos-tag{font-size:11.5px;color:var(--muted);margin-left:8px;}
+  .roster-row .remove-btn{background:none;border:none;color:var(--red-warn);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;}
+  .empty-note{text-align:center;color:var(--muted);font-size:13px;padding:16px 10px;}
+  .error-box{background:rgba(226,96,79,0.12);border:1px solid var(--red-warn);color:var(--red-warn);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;}
+  .full-banner{background:rgba(242,199,68,0.12);border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:10px 12px;font-size:13px;text-align:center;margin-bottom:14px;font-weight:700;}
+  .teams-grid{display:flex;gap:10px;margin-top:6px;}
+  .team-col{flex:1;border-radius:12px;padding:12px;border:1px solid var(--line);}
+  .team-col.white{background:linear-gradient(180deg,#F4F2EC,#E4E0D6);}
+  .team-col.black{background:linear-gradient(180deg,#0D0D0D,#000);}
+  .team-head{font-size:14px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;text-align:center;}
+  .team-col.white .team-head{color:#1A1A1A;}
+  .team-col.black .team-head{color:var(--chalk);}
+  .team-player{border-radius:8px;padding:8px 9px;font-size:13.5px;margin-bottom:6px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;transition:transform .1s ease;}
+  .team-col.white .team-player{background:rgba(0,0,0,0.06);color:#1A1A1A;}
+  .team-col.black .team-player{background:rgba(255,255,255,0.06);color:var(--chalk);}
+  .team-player.selected{outline:2px solid var(--gold);transform:scale(1.03);}
+  .team-player .pos-tag{font-size:10.5px;opacity:0.65;margin-left:6px;}
+  .footer-note{text-align:center;font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .swap-hint{text-align:center;font-size:12px;color:var(--gold);margin-top:10px;min-height:16px;}
+
+  .ad-slot{border:1px dashed var(--line); border-radius:10px; min-height:90px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:12px; margin-bottom:16px; text-align:center; padding:10px;}
+</style>
+</head>
+<body>
+  <div class="app" id="app">Cargando…</div>
+
+  <!-- ESPACIO DE ANUNCIO: mové este bloque a donde lo quieras mostrar -->
+  <!-- <div class="app"><div id="ad-slot" class="ad-slot">Espacio publicitario (pendiente de AdSense)</div></div> -->
+
+<script type="module">
+// ============================================================
+// CONFIGURACIÓN DE FIREBASE — reemplazá por la de tu proyecto
+// (ver DEPLOY-README.md paso a paso).
+// ============================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAPf4qVvqgsUGGOOhwNc4DORHMr9HycMWY",
+  authDomain: "futboleros-b54ed.firebaseapp.com",
+  databaseURL: "https://futboleros-b54ed-default-rtdb.firebaseio.com",
+  projectId: "futboleros-b54ed",
+  storageBucket: "futboleros-b54ed.firebasestorage.app",
+  messagingSenderId: "965071200096",
+  appId: "1:965071200096:web:2db942a88515265cf58805"
+};
+
+let db = null;
+let firebaseReady = false;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+  firebaseReady = true;
+} catch (e) {
+  console.error('Firebase no se pudo inicializar. Revisá tu firebaseConfig.', e);
+}
+
+let currentRoom = null;
+let roomUnsubscribe = null;
+
+function slugify(s){
+  return s.toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function roomPath(room){ return 'futboleros/rooms/' + room; }
+
+const POSITIONS = [
+  { id:'portero', label:'Portero', icon:'🧤' },
+  { id:'defensa_central', label:'Defensa central', icon:'🛡️' },
+  { id:'lateral', label:'Lateral', icon:'🔄' },
+  { id:'volante', label:'Volante', icon:'🎯' },
+  { id:'extremo', label:'Extremo', icon:'🏹' },
+  { id:'delantero', label:'Delantero', icon:'⚽' }
+];
+function posInfo(id){ return POSITIONS.find(p => p.id === id) || { label:id, icon:'' }; }
+
+let state = null;
+let ui = { screen:'loading', errorMsg:'', swapSelection:null, confirmAction:null, linkCopied:false };
+
+async function loadState(){
+  if (!currentRoom || !firebaseReady) return null;
+  try {
+    const snap = await get(ref(db, roomPath(currentRoom)));
+    return snap.exists() ? snap.val() : null;
+  } catch(e){ console.error('Error leyendo Firebase', e); return null; }
+}
+async function saveState(s){
+  if (!currentRoom || !firebaseReady) return;
+  try { await set(ref(db, roomPath(currentRoom)), s); } catch(e){ console.error('Error guardando en Firebase', e); }
+}
+
+function subscribeRoom(){
+  if (roomUnsubscribe){ roomUnsubscribe(); roomUnsubscribe = null; }
+  if (!currentRoom || !firebaseReady) return;
+  roomUnsubscribe = onValue(ref(db, roomPath(currentRoom)), (snap) => {
+    state = snap.exists() ? snap.val() : null;
+    ui.screen = state ? 'roster' : 'setup';
+    render();
+  }, (err) => {
+    console.error('Error de conexión con Firebase', err);
+    ui.errorMsg = 'No se pudo conectar con la base de datos. Revisá tu conexión o tu configuración de Firebase.';
+    render();
+  });
+}
+
+function nextFridayISO(){
+  const d = new Date();
+  const day = d.getDay();
+  const diff = (5 - day + 7) % 7;
+  const target = new Date(d);
+  target.setDate(d.getDate() + diff);
+  return target.toISOString().slice(0,10);
+}
+function formatDate(iso){
+  try {
+    const [y,m,dd] = iso.split('-').map(Number);
+    const d = new Date(y, m-1, dd);
+    const s = d.toLocaleDateString('es-CR', { weekday:'long', day:'numeric', month:'long' });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  } catch(e){ return iso; }
+}
+function formatTime(hhmm){
+  if (!hhmm) return '';
+  try {
+    const [h,min] = hhmm.split(':').map(Number);
+    const d = new Date(2000,0,1,h,min);
+    return d.toLocaleTimeString('es-CR', { hour:'numeric', minute:'2-digit', hour12:true });
+  } catch(e){ return hhmm; }
+}
+
+async function init(){
+  if (!firebaseReady){
+    ui.screen = 'config-error';
+    render();
+    return;
+  }
+  let roomFromUrl = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    roomFromUrl = params.get('g');
+  } catch(e){ roomFromUrl = null; }
+  if (roomFromUrl){
+    currentRoom = slugify(roomFromUrl);
+    ui.screen = 'loading';
+    render();
+    subscribeRoom();
+  } else {
+    ui.screen = 'join-room';
+    render();
+  }
+}
+
+window.joinRoom = async function(){
+  const codeInput = document.getElementById('room-code');
+  const raw = codeInput.value.trim();
+  if (!raw){ ui.errorMsg = 'Escribí un código para tu grupo (ej. equipo-viernes).'; render(); return; }
+  currentRoom = slugify(raw);
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('g', currentRoom);
+    window.history.replaceState({}, '', url);
+  } catch(e){ /* no crítico */ }
+  ui.errorMsg = '';
+  subscribeRoom();
+};
+
+function generateShareLink(){
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('g', currentRoom);
+    return url.toString();
+  } catch(e){ return null; }
+}
+window.selectShareInput = function(){
+  const el = document.getElementById('share-link-input');
+  if (el) el.select();
+};
+window.tryClipboardCopy = function(link){
+  if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+  navigator.clipboard.writeText(link).then(() => {
+    ui.linkCopied = true;
+    render();
+    setTimeout(() => { ui.linkCopied = false; render(); }, 2500);
+  }).catch(() => {});
+};
+
+// ---------- actions ----------
+window.createSession = async function(){
+  const placeInput = document.getElementById('place-input');
+  const dateInput = document.getElementById('date-input');
+  const timeInput = document.getElementById('time-input');
+  const capInput = document.getElementById('cap-input');
+  const subsInput = document.getElementById('subs-input');
+  const place = placeInput.value.trim();
+  const date = dateInput.value || nextFridayISO();
+  const time = timeInput.value || '';
+  let capacity = parseInt(capInput.value, 10);
+  if (!capacity || capacity < 2) capacity = 14;
+  let subsCapacity = parseInt(subsInput.value, 10);
+  if (!subsCapacity || subsCapacity < 0) subsCapacity = 0;
+  state = { place, date, time, capacity, subsCapacity, players: [], teams: null };
+  await saveState(state);
+  ui.errorMsg = '';
+  render();
+};
+
+window.joinRoster = async function(){
+  const nameInput = document.getElementById('join-name');
+  const posSelect = document.getElementById('join-pos');
+  const name = nameInput.value.trim();
+  if (!name){ ui.errorMsg = 'Escribí tu nombre para apuntarte.'; render(); return; }
+  const fresh = await loadState();
+  if (fresh) state = fresh;
+  const titulares = state.players.filter(p => !p.isSub);
+  const suplentes = state.players.filter(p => p.isSub);
+  const dup = state.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+  if (dup){ ui.errorMsg = 'Ese nombre ya está en la lista.'; render(); return; }
+  let isSub = false;
+  if (titulares.length >= state.capacity){
+    if (suplentes.length >= (state.subsCapacity || 0)){
+      ui.errorMsg = 'El cupo (titulares y suplentes) ya está lleno.';
+      render();
+      return;
+    }
+    isSub = true;
+  }
+  state.players.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7), name, position: posSelect.value, isSub });
+  ui.errorMsg = '';
+  await saveState(state);
+  render();
+};
+
+window.removePlayer = async function(id){
+  const fresh = await loadState();
+  if (fresh) state = fresh;
+  state.players = state.players.filter(p => p.id !== id);
+  await saveState(state);
+  render();
+};
+
+function shuffle(arr){
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i+1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+window.sortTeams = async function(){
+  const fresh = await loadState();
+  if (fresh) state = fresh;
+  const titulares = state.players.filter(p => !p.isSub);
+  if (titulares.length < 2) return;
+  const order = ['portero','defensa_central','lateral','volante','extremo','delantero'];
+  const grouped = order.map(pos => shuffle(titulares.filter(p => p.position === pos)));
+  const others = shuffle(titulares.filter(p => !order.includes(p.position)));
+  const sequence = [...grouped.flat(), ...others];
+  const blanco = [], negro = [];
+  let turnWhite = true;
+  sequence.forEach(p => {
+    if (turnWhite) blanco.push(p.id); else negro.push(p.id);
+    turnWhite = !turnWhite;
+  });
+  state.teams = { blanco, negro };
+  await saveState(state);
+  ui.swapSelection = null;
+  render();
+};
+
+window.undoSort = async function(){
+  ui.confirmAction = 'undoSort';
+  render();
+};
+window.confirmUndoSort = async function(){
+  const fresh = await loadState();
+  if (fresh) state = fresh;
+  state.teams = null;
+  ui.confirmAction = null;
+  await saveState(state);
+  render();
+};
+
+window.tapPlayerForSwap = function(id){
+  if (!ui.swapSelection){ ui.swapSelection = id; render(); return; }
+  if (ui.swapSelection === id){ ui.swapSelection = null; render(); return; }
+  const a = ui.swapSelection, b = id;
+  const inBlancoA = state.teams.blanco.includes(a);
+  const inBlancoB = state.teams.blanco.includes(b);
+  if (inBlancoA === inBlancoB){ ui.swapSelection = id; render(); return; }
+  state.teams.blanco = state.teams.blanco.map(x => x === a ? b : (x === b ? a : x));
+  state.teams.negro = state.teams.negro.map(x => x === a ? b : (x === b ? a : x));
+  ui.swapSelection = null;
+  saveState(state);
+  render();
+};
+
+window.newSession = async function(){
+  ui.confirmAction = 'newSession';
+  render();
+};
+window.confirmNewSession = async function(){
+  state = null;
+  await saveState(null);
+  ui.confirmAction = null;
+  ui.errorMsg = '';
+  render();
+};
+window.cancelConfirm = function(){
+  ui.confirmAction = null;
+  render();
+};
+
+// ---------- render ----------
+function playerById(id){ return state.players.find(p => p.id === id); }
+
+function render(){
+  const app = document.getElementById('app');
+
+  if (ui.screen === 'config-error'){
+    app.innerHTML = `
+      <div class="eyebrow">FUTBOLEROS</div>
+      <h1 class="title">Falta configurar Firebase</h1>
+      <div class="card">
+        <div class="error-box">
+          Este archivo todavía tiene los valores de ejemplo en <code>firebaseConfig</code>.
+          Creá tu proyecto gratis en Firebase y pegá tu configuración real
+          en la parte de arriba del archivo. Mirá DEPLOY-README.md para el paso a paso.
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (ui.screen === 'loading'){
+    app.innerHTML = `<div class="empty-note">Cargando…</div>`;
+    return;
+  }
+
+  if (ui.screen === 'join-room'){
+    app.innerHTML = `
+      <div class="eyebrow">FUTBOLEROS</div>
+      <h1 class="title">¿Cuál es tu grupo?</h1>
+      <div class="subtitle">Cada grupo tiene su propio código, para que las listas no se mezclen entre canchas distintas</div>
+      <div class="card">
+        <label class="field-label">Código de tu grupo</label>
+        <input type="text" id="room-code" placeholder="ej. equipo-viernes">
+        <div class="hint">Si tu grupo ya tiene uno, usá el mismo código. Si es la primera vez, inventá uno simple y compartilo junto con el link.</div>
+        ${ui.errorMsg ? `<div class="error-box" style="margin-top:12px;">${ui.errorMsg}</div>` : ''}
+        <button class="btn btn-primary" style="margin-top:16px" onclick="joinRoom()">Entrar</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (ui.confirmAction){
+    const msg = ui.confirmAction === 'newSession'
+      ? 'Esto archiva el partido actual y arma una lista nueva para todos.'
+      : 'Esto deshace el sorteo actual y podés volver a repartir equipos.';
+    const confirmFn = ui.confirmAction === 'newSession' ? 'confirmNewSession()' : 'confirmUndoSort()';
+    app.innerHTML = `
+      <div class="eyebrow">FUTBOLEROS</div>
+      <h1 class="title">¿Seguro?</h1>
+      <div class="card">
+        <div class="subtitle" style="margin-bottom:16px;">${msg}</div>
+        <button class="btn btn-primary" onclick="${confirmFn}">Sí, continuar</button>
+        <button class="btn btn-ghost" style="margin-top:10px" onclick="cancelConfirm()">Cancelar</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (!state){
+    app.innerHTML = `
+      <div class="eyebrow">FUTBOLEROS · ${currentRoom || ''}</div>
+      <h1 class="title">Armar la lista</h1>
+      <div class="subtitle">Configurá el próximo partido para que todos se apunten</div>
+      <div class="card">
+        <label class="field-label">Cancha / lugar</label>
+        <input type="text" id="place-input" placeholder="ej. Cancha La Deportiva">
+        <div class="hint" style="margin-bottom:14px;">Opcional, pero ayuda si tu grupo juega en distintos lugares.</div>
+        <label class="field-label">Fecha del partido</label>
+        <input type="date" id="date-input" value="${nextFridayISO()}">
+        <div class="hint" style="margin-bottom:14px;">Por defecto el próximo viernes — cambiala si ese partido cae otro día.</div>
+        <label class="field-label">Hora</label>
+        <input type="time" id="time-input" value="17:00">
+        <div class="hint" style="margin-bottom:14px;">Opcional — dejala si aún no la sabés.</div>
+        <label class="field-label">Cupos titulares (según tamaño de cancha)</label>
+        <input type="number" id="cap-input" value="14" min="2" step="2">
+        <div class="hint" style="margin-bottom:14px;">14 para cancha de 7, 10 para cancha de 5, 22 para cancha abierta de 11.</div>
+        <label class="field-label">Cupos de suplentes</label>
+        <input type="number" id="subs-input" value="2" min="0" step="1">
+        <div class="hint">Vos decidís el número — típicamente 2 para fútbol 5/sala, 4-6 o más para cancha abierta de 11. No entran al sorteo de camisetas.</div>
+        ${ui.errorMsg ? `<div class="error-box" style="margin-top:12px;">${ui.errorMsg}</div>` : ''}
+        <button class="btn btn-primary" style="margin-top:16px" onclick="createSession()">Crear lista</button>
+      </div>
+      <div class="footer-note">Compartí el link (con tu código) en el grupo para que cada quien se apunte.</div>
+    `;
+    return;
+  }
+
+  const titulares = state.players.filter(p => !p.isSub);
+  const suplentes = state.players.filter(p => p.isSub);
+  const full = titulares.length >= state.capacity;
+  const subsFull = suplentes.length >= (state.subsCapacity || 0);
+  const pct = Math.min(100, Math.round((titulares.length / state.capacity) * 100));
+
+  const rosterRow = (p) => {
+    const info = posInfo(p.position);
+    return `<div class="roster-row">
+      <span>${info.icon} ${p.name}<span class="pos-tag">${info.label}</span></span>
+      <button class="remove-btn" onclick="removePlayer('${p.id}')" aria-label="Quitar">×</button>
+    </div>`;
+  };
+  const rosterRows = titulares.map(rosterRow).join('') || `<div class="empty-note">Nadie se ha apuntado todavía.</div>`;
+  const subsRows = suplentes.map(rosterRow).join('') || `<div class="empty-note">Sin suplentes todavía.</div>`;
+
+  let teamsBlock = '';
+  if (state.teams){
+    const renderCol = (ids, cls, label) => `
+      <div class="team-col ${cls}">
+        <div class="team-head">${label}</div>
+        ${ids.map(id => {
+          const p = playerById(id);
+          if (!p) return '';
+          const info = posInfo(p.position);
+          const sel = ui.swapSelection === id ? 'selected' : '';
+          return `<div class="team-player ${sel}" onclick="tapPlayerForSwap('${id}')">
+            <span>${info.icon} ${p.name}</span><span class="pos-tag">${info.label}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    teamsBlock = `
+      <div class="card">
+        <label class="field-label">Equipos</label>
+        <div class="teams-grid">
+          ${renderCol(state.teams.blanco, 'white', 'Blanco')}
+          ${renderCol(state.teams.negro, 'black', 'Negro')}
+        </div>
+        <div class="swap-hint">${ui.swapSelection ? 'Tocá un jugador del otro equipo para intercambiar' : 'Tocá dos jugadores (uno de cada equipo) para intercambiarlos'}</div>
+        ${suplentes.length ? `<div class="hint" style="margin-top:10px;">Suplentes disponibles para cambios: ${suplentes.map(p => p.name).join(', ')}</div>` : ''}
+        <button class="btn btn-ghost" style="margin-top:14px" onclick="undoSort()">Deshacer sorteo</button>
+      </div>
+    `;
+  }
+
+  const subtitleParts = [state.place, formatDate(state.date), state.time ? formatTime(state.time) : ''].filter(Boolean);
+  const shareLinkValue = generateShareLink();
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div>
+        <div class="eyebrow">FUTBOLEROS · ${currentRoom}</div>
+        <h1 class="title" style="text-align:left;font-size:22px;">${subtitleParts.join(' · ')}</h1>
+      </div>
+      <button class="reset-btn" onclick="newSession()">Nuevo partido</button>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Invitar a este partido</label>
+      <div class="hint" style="margin-bottom:10px;">Este link lleva directo a este partido específico (${subtitleParts.join(' · ') || 'sin fecha aún'}), no a la lista general de la app. Compartilo en tu grupo de WhatsApp.</div>
+      ${shareLinkValue ? `
+        <input type="text" id="share-link-input" readonly value="${shareLinkValue}" onclick="selectShareInput()" style="margin-bottom:10px;">
+        <button class="btn btn-ghost" onclick="tryClipboardCopy('${shareLinkValue.replace(/'/g,"\\'")}')">${ui.linkCopied ? '¡Copiado!' : 'Copiar (o tocá el link y copialo a mano)'}</button>
+      ` : `<div class="hint">Código de tu sala: <strong>${currentRoom}</strong></div>`}
+    </div>
+
+    <div class="card">
+      <label class="field-label">Titulares</label>
+      <div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div>
+      <div class="capacity-text">${titulares.length} / ${state.capacity}</div>
+      <div class="roster-list">${rosterRows}</div>
+
+      ${(state.subsCapacity > 0) ? `
+        <label class="field-label" style="margin-top:10px;">Suplentes (${suplentes.length} / ${state.subsCapacity})</label>
+        <div class="roster-list">${subsRows}</div>
+      ` : ''}
+
+      ${(full && subsFull) ? `<div class="full-banner">Cupo lleno (titulares y suplentes) — la próxima semana será.</div>` : ''}
+      ${!(full && subsFull) ? `
+        <div class="row"><div><input type="text" id="join-name" placeholder="Tu nombre"></div></div>
+        <div class="row"><div>
+          <select id="join-pos">
+            ${POSITIONS.map(p => `<option value="${p.id}">${p.icon} ${p.label}</option>`).join('')}
+          </select>
+        </div></div>
+        ${ui.errorMsg ? `<div class="error-box">${ui.errorMsg}</div>` : ''}
+        <button class="btn btn-primary" onclick="joinRoster()">${full ? 'Apuntarme de suplente' : 'Apuntarme'}</button>
+      ` : ''}
+
+      ${!state.teams ? `
+        <button class="btn btn-ghost" style="margin-top:12px" onclick="sortTeams()" ${titulares.length < 2 ? 'disabled' : ''}>Sortear equipos</button>
+      ` : ''}
+    </div>
+
+    ${teamsBlock}
+
+    <div class="footer-note">El sorteo agrupa por posición y reparte alternando, para que no quede un equipo cargado de una sola posición. Los porteros siempre caen en equipos distintos. Los suplentes quedan fuera del sorteo para poder rotar en cualquiera de los dos equipos.</div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>
